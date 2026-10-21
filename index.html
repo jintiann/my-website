@@ -1,0 +1,1220 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>牌面之下 · 塔罗推理游戏原型</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' fill='%2312101f'/%3E%3Cpath d='M16 4l2.4 8.2L27 11l-6.3 5.5L23 25l-7-4.6L9 25l2.3-8.5L5 11l8.6 1.2z' fill='none' stroke='%23c9a86a' stroke-width='1.4'/%3E%3C/svg%3E">
+<link rel="stylesheet" href="https://miaoda.feishu.cn/fonts/css2?family=Noto+Serif+SC:wght@400;600;700;900&family=Noto+Sans+SC:wght@300;400;500;700&display=swap">
+<style>
+/* ============ 设计变量 ============ */
+:root{
+  --bg:#12101f;
+  --bg2:#1a1530;
+  --panel:#1d1836;
+  --panel2:#241d42;
+  --gold:#c9a86a;
+  --gold-light:#e8d9b5;
+  --gold-dim:#8a774e;
+  --paper:#f3ead6;
+  --paper-dim:#e3d6b8;
+  --ink:#2c2438;
+  --candle:#e08a4e;
+  --candle-soft:#f2b582;
+  --text:#d8d0e8;
+  --text-dim:#9a90b4;
+  --danger:#c97064;
+  --serif:"Noto Serif SC", "Songti SC", serif;
+  --sans:"Noto Sans SC", system-ui, sans-serif;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+html,body{height:100%}
+body{
+  font-family:var(--sans);
+  background:var(--bg);
+  color:var(--text);
+  overflow-x:hidden;
+  -webkit-font-smoothing:antialiased;
+}
+/* 星空背景 */
+.starfield{position:fixed;inset:0;z-index:0;pointer-events:none;
+  background:
+  radial-gradient(ellipse at 50% -10%, #2a2350 0%, transparent 55%),
+  radial-gradient(ellipse at 85% 110%, #221b40 0%, transparent 50%),
+  var(--bg);}
+.starfield svg{position:absolute;inset:0;width:100%;height:100%;opacity:.5}
+.star{animation:twinkle 4s ease-in-out infinite}
+@keyframes twinkle{0%,100%{opacity:.25}50%{opacity:.9}}
+main{position:relative;z-index:1;min-height:100vh}
+.screen{display:none;min-height:100vh;flex-direction:column;animation:fadeIn .7s ease}
+.screen.active{display:flex}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+/* ============ 通用组件 ============ */
+.btn{
+  font-family:var(--serif);
+  display:inline-block;
+  padding:14px 42px;
+  background:transparent;
+  color:var(--gold-light);
+  border:1px solid var(--gold);
+  border-radius:2px;
+  font-size:16px;
+  letter-spacing:.35em;
+  text-indent:.35em;
+  cursor:pointer;
+  transition:all .35s;
+  position:relative;
+}
+.btn:hover{background:var(--gold);color:var(--bg);box-shadow:0 0 28px rgba(201,168,106,.35)}
+.btn:disabled{opacity:.35;cursor:not-allowed;box-shadow:none;background:transparent;color:var(--gold-light)}
+.btn-ghost{border-color:var(--gold-dim);color:var(--text-dim);font-size:13px;padding:9px 22px;letter-spacing:.2em;text-indent:.2em}
+.btn-ghost:hover{background:var(--panel2);color:var(--gold-light);box-shadow:none}
+.eyebrow{font-family:var(--serif);color:var(--gold-dim);letter-spacing:.5em;font-size:12px;text-transform:uppercase}
+.divider{display:flex;align-items:center;gap:14px;color:var(--gold-dim);margin:18px 0}
+.divider::before,.divider::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--gold-dim),transparent)}
+/* ============ 塔罗牌组件 ============ */
+.tarot-card{
+  position:relative;
+  width:128px;height:218px;
+  border-radius:6px;
+  perspective:1000px;
+  cursor:pointer;
+}
+.card-inner{
+  position:relative;width:100%;height:100%;
+  transform-style:preserve-3d;
+  transition:transform .9s cubic-bezier(.4,.1,.2,1);
+}
+.tarot-card.flipped .card-inner{transform:rotateY(180deg)}
+.card-face{
+  position:absolute;inset:0;
+  backface-visibility:hidden;
+  border-radius:6px;
+  overflow:hidden;
+}
+.card-back{
+  background:linear-gradient(160deg,#241d44,#151128);
+  border:1.5px solid var(--gold);
+  box-shadow:inset 0 0 0 5px var(--bg2),inset 0 0 0 6px var(--gold-dim),0 6px 24px rgba(0,0,0,.5);
+  display:flex;align-items:center;justify-content:center;
+}
+.card-back svg{width:62%;opacity:.85}
+.card-front{
+  transform:rotateY(180deg);
+  background:linear-gradient(170deg,var(--paper),var(--paper-dim));
+  border:1.5px solid var(--gold);
+  box-shadow:0 6px 24px rgba(0,0,0,.5);
+  color:var(--ink);
+  display:flex;flex-direction:column;align-items:center;justify-content:space-between;
+  padding:12px 8px;
+  text-align:center;
+}
+.tarot-card.reversed.flipped .card-inner{transform:rotateY(180deg) rotate(180deg)}
+.card-num{font-family:var(--serif);font-size:14px;letter-spacing:.15em;color:var(--gold-dim);white-space:nowrap}
+.card-emblem{width:min(70px,60%);height:auto;flex:none}
+.card-name{font-family:var(--serif);font-weight:700;font-size:15px;letter-spacing:.1em;color:var(--ink);white-space:nowrap;line-height:1.15}
+.card-en{font-size:7.5px;letter-spacing:.08em;color:var(--gold-dim);margin-top:5px;white-space:nowrap;line-height:1.15}
+.card-title{flex:none}
+.card-ornament{color:var(--gold-dim);font-size:9px;line-height:1}
+.home-cards .tarot-card .card-num{font-size:11px}
+.home-cards .tarot-card .card-name{font-size:11.5px}
+.home-cards .tarot-card .card-en{display:none}
+.home-cards .tarot-card .card-emblem{width:40px}
+.home-cards .tarot-card .card-front{padding:9px 6px}
+.inv-cards .tarot-card .card-num{font-size:12px}
+.inv-cards .tarot-card .card-name{font-size:12.5px}
+.inv-cards .tarot-card .card-en{font-size:5.6px;letter-spacing:.04em}
+.inv-cards .tarot-card .card-emblem{width:50px}
+.ending-card .card-name{font-size:14px}
+.ending-card .card-en{font-size:7px}
+.ending-card .card-emblem{width:58px}
+.slot .tarot-card .card-name{font-size:13px}
+/* ============ 首页 ============ */
+#screen-home{align-items:stretch;justify-content:flex-start;text-align:center;padding:0;display:none;overflow-y:auto}
+#screen-home.active{display:block}
+.hero{position:relative;height:min(58vh,560px);min-height:380px;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.hero-img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;animation:heroSlow 18s ease-in-out infinite alternate}
+@keyframes heroSlow{from{transform:scale(1)}to{transform:scale(1.06)}}
+.hero-veil{position:absolute;inset:0;
+  background:
+    radial-gradient(ellipse at center,rgba(18,16,31,.25) 0%,rgba(18,16,31,.72) 100%),
+    linear-gradient(180deg,rgba(18,16,31,.55) 0%,rgba(18,16,31,.15) 45%,rgba(18,16,31,.95) 100%)}
+.hero-content{position:relative;z-index:2;padding:0 20px;animation:float 6s ease-in-out infinite}
+@keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-8px)}}
+.home-title{
+  font-family:var(--serif);font-weight:900;
+  font-size:clamp(40px,8vw,78px);
+  letter-spacing:.3em;text-indent:.3em;
+  color:var(--gold-light);
+  text-shadow:0 2px 30px rgba(0,0,0,.8),0 0 46px rgba(201,168,106,.4);
+  margin:14px 0 12px;
+}
+.home-sub{font-family:var(--serif);color:#e8d9b5;font-size:15px;letter-spacing:.28em;text-shadow:0 2px 12px rgba(0,0,0,.8)}
+.home-body{padding:46px 20px 54px}
+.home-cards{display:flex;gap:18px;justify-content:center;margin-bottom:44px;transform:rotate(-2deg)}
+.home-cards .tarot-card{width:96px;height:164px;pointer-events:none}
+.home-cards .tarot-card:nth-child(1){transform:rotate(-10deg) translateY(6px)}
+.home-cards .tarot-card:nth-child(2){z-index:2;transform:scale(1.06)}
+.home-cards .tarot-card:nth-child(3){transform:rotate(10deg) translateY(6px)}
+.home-note{margin-top:36px;font-size:12px;color:var(--text-dim);letter-spacing:.15em;line-height:2}
+/* ============ 案件档案页 ============ */
+#screen-brief{justify-content:center;align-items:center;padding:46px 20px}
+.brief-wrap{max-width:860px;width:100%}
+.brief-case{
+  border:1px solid var(--gold-dim);
+  background:linear-gradient(160deg,rgba(29,24,54,.9),rgba(18,16,31,.9));
+  padding:30px 34px;border-radius:4px;
+  position:relative;
+  display:grid;grid-template-columns:210px 1fr;gap:32px;align-items:start;
+}
+.brief-case::before{content:"";position:absolute;inset:6px;border:1px solid rgba(201,168,106,.25);pointer-events:none;border-radius:2px}
+.brief-portrait{position:relative;z-index:1;margin-top:6px}
+.brief-portrait img{
+  width:100%;border-radius:4px;border:1px solid var(--gold);
+  box-shadow:0 10px 30px rgba(0,0,0,.45);display:block}
+.portrait-caption{
+  text-align:center;font-size:11px;letter-spacing:.25em;color:var(--gold-dim);
+  margin-top:12px}
+.brief-main{position:relative;z-index:1;min-width:0}
+.client-meta{margin-bottom:18px;padding-bottom:16px;border-bottom:1px solid rgba(201,168,106,.2)}
+.client-meta h3{font-family:var(--serif);font-size:19px;color:var(--gold-light);letter-spacing:.12em}
+.client-meta p{font-size:12.5px;color:var(--text-dim);margin-top:5px;letter-spacing:.08em}
+.brief-text{font-size:15px;line-height:2.1;color:var(--text);letter-spacing:.03em}
+.brief-text .type-caret{display:inline-block;width:2px;height:1.1em;background:var(--gold);vertical-align:-2px;margin-left:2px;animation:blink 1s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+.brief-actions{margin-top:30px;text-align:center}
+/* ============ 牌阵室 ============ */
+#screen-spread{justify-content:center;align-items:center;padding:40px 20px}
+.spread-wrap{max-width:900px;width:100%;text-align:center}
+.spread-intro{max-width:600px;margin:0 auto 26px;font-size:14px;line-height:1.9;color:var(--text-dim);font-style:italic}
+.spread-stage{
+  display:flex;justify-content:center;gap:34px;flex-wrap:wrap;
+  margin:26px 0 34px;min-height:250px;align-items:center}
+.slot{display:flex;flex-direction:column;align-items:center;gap:12px}
+.slot-label{font-family:var(--serif);color:var(--gold);letter-spacing:.3em;font-size:14px;min-height:20px}
+.slot-empty{
+  width:128px;height:218px;border:1.5px dashed var(--gold-dim);border-radius:6px;
+  display:flex;align-items:center;justify-content:center;
+  color:var(--gold-dim);font-size:30px;
+  opacity:.5;
+}
+.slot-empty .plus{width:26px;height:26px}
+.slot .tarot-card{animation:dealIn .8s ease}
+@keyframes dealIn{from{transform:translateY(-60px);opacity:0}to{transform:translateY(0);opacity:1}}
+.card-caption{font-size:12px;letter-spacing:.12em;color:var(--text-dim);min-height:48px;line-height:1.7;max-width:200px;margin:14px auto 0;text-align:center}
+.cap-meaning{display:block;font-size:11px;letter-spacing:.05em;color:var(--gold-light);line-height:1.6}
+.cap-meaning.rv{color:var(--candle)}
+.spread-hint{font-size:13px;color:var(--text-dim);margin-bottom:20px;letter-spacing:.12em;min-height:20px}
+/* ============ 调查页 ============ */
+#screen-investigate{display:none;height:100vh}
+#screen-investigate.active{display:flex}
+.inv-top{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:12px 22px;border-bottom:1px solid rgba(201,168,106,.2);
+  background:rgba(18,16,31,.85);backdrop-filter:blur(8px);
+  flex:none;
+}
+.inv-top .case-name{font-family:var(--serif);color:var(--gold-light);letter-spacing:.2em;font-size:15px}
+.candle-wrap{display:flex;align-items:center;gap:10px}
+.client-mini{width:38px;height:38px;border-radius:50%;object-fit:cover;object-position:top;border:1px solid var(--gold);box-shadow:0 0 10px rgba(201,168,106,.25)}
+.candle{width:26px;height:44px;position:relative}
+.candle-body{position:absolute;bottom:0;left:50%;transform:translateX(-50%);width:12px;height:26px;background:#f3e4c8;border-radius:2px}
+.flame{position:absolute;bottom:26px;left:50%;transform:translateX(-50%);width:9px;height:14px;
+  background:radial-gradient(circle at 50% 70%,#fff2d0,var(--candle-soft) 45%,var(--candle) 80%);
+  border-radius:50% 50% 45% 45%;transform-origin:bottom center;
+  animation:flicker 1.2s ease-in-out infinite;}
+@keyframes flicker{0%,100%{transform:translateX(-50%) scale(1) rotate(-2deg)}50%{transform:translateX(-50%) scale(1.12,.92) rotate(2deg)}}
+.emotion-label{font-size:12px;color:var(--text-dim);letter-spacing:.15em}
+.inv-body{flex:1;display:grid;grid-template-columns:240px 1fr 250px;overflow:hidden}
+.inv-col{padding:20px;overflow-y:auto}
+.inv-cards{border-right:1px solid rgba(201,168,106,.15);display:flex;flex-direction:column;gap:16px}
+.inv-cards .tarot-card{width:100%;max-width:140px;margin:0 auto}
+.inv-cards .tarot-card{height:220px}
+.inv-cards .tarot-card.selectable{cursor:pointer}
+.inv-cards .tarot-card.selectable:hover{transform:translateY(-4px)}
+.inv-cards .tarot-card.selected{outline:2px solid var(--gold);outline-offset:3px;border-radius:8px}
+.card-quota{font-size:11px;color:var(--text-dim);text-align:center;letter-spacing:.1em}
+.card-quota b{color:var(--gold)}
+.inv-chat{display:flex;flex-direction:column;gap:14px;padding-bottom:100px}
+.msg{max-width:86%;padding:13px 17px;border-radius:3px;font-size:14px;line-height:1.85;animation:msgIn .4s ease;white-space:pre-wrap}
+@keyframes msgIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+.msg-card{background:linear-gradient(160deg,#2b2450,#211b3e);border:1px solid rgba(201,168,106,.35);align-self:flex-start}
+.msg-card .who{display:block;font-family:var(--serif);color:var(--gold);font-size:12px;letter-spacing:.2em;margin-bottom:5px}
+.msg-card.reversed{border-color:rgba(224,138,78,.5)}
+.msg-card.reversed .who{color:var(--candle)}
+.msg-client{background:linear-gradient(160deg,#33295e,#262046);border:1px solid rgba(150,130,200,.3);align-self:flex-start}
+.msg-client .who{color:#b9a9e0}
+.msg-system{background:transparent;color:var(--text-dim);font-size:13px;align-self:center;text-align:center;font-style:italic}
+.msg-vision{background:linear-gradient(160deg,#1c2733,#16202c);border:1px solid rgba(120,160,190,.35);align-self:stretch;max-width:100%}
+.msg-vision .who{color:#8fb4d4}
+.msg-user{background:var(--gold);color:var(--bg);align-self:flex-end;font-weight:500}
+.suggest-row{display:flex;flex-wrap:wrap;gap:8px;align-self:flex-start}
+.suggest-chip{
+  font-family:var(--sans);font-size:12.5px;padding:8px 14px;
+  background:rgba(201,168,106,.1);border:1px solid var(--gold-dim);
+  color:var(--gold-light);border-radius:20px;cursor:pointer;transition:all .25s}
+.suggest-chip:hover{background:rgba(201,168,106,.25)}
+.inv-input{
+  flex:none;
+  padding:14px 22px;border-top:1px solid rgba(201,168,106,.2);
+  background:rgba(18,16,31,.92);
+  display:flex;gap:10px;align-items:center;
+}
+.inv-input input{
+  flex:1;background:var(--panel);border:1px solid var(--gold-dim);
+  color:var(--text);padding:12px 16px;border-radius:3px;font-size:14px;
+  font-family:var(--sans);outline:none;
+}
+.inv-input input:focus{border-color:var(--gold)}
+.inv-input input::placeholder{color:var(--text-dim)}
+.inv-actions{display:flex;gap:8px}
+.act-btn{
+  padding:11px 14px;font-size:12px;letter-spacing:.1em;
+  background:transparent;border:1px solid var(--gold-dim);color:var(--gold-light);
+  border-radius:3px;cursor:pointer;white-space:nowrap;transition:all .25s;font-family:var(--sans)}
+.act-btn:hover{background:rgba(201,168,106,.2)}
+.act-btn:disabled{opacity:.35;cursor:not-allowed}
+/* 线索板 */
+.inv-board{border-left:1px solid rgba(201,168,106,.15)}
+.board-title{font-family:var(--serif);color:var(--gold);letter-spacing:.3em;font-size:14px;text-align:center;margin-bottom:16px}
+.board-empty{font-size:12.5px;color:var(--text-dim);text-align:center;line-height:1.9;margin-top:40px}
+.clue{
+  background:linear-gradient(160deg,#f3ead6,#e6d8b8);
+  color:var(--ink);font-size:12.5px;line-height:1.7;
+  padding:10px 13px;margin-bottom:10px;border-radius:2px;
+  transform:rotate(-.6deg);
+  box-shadow:0 3px 10px rgba(0,0,0,.35);
+  position:relative;
+}
+.clue:nth-child(even){transform:rotate(.7deg)}
+.clue::before{content:"";position:absolute;top:7px;left:50%;transform:translateX(-50%);width:26px;height:7px;background:rgba(201,168,106,.45);border-radius:1px}
+.clue{padding-top:18px}
+.clue-tag{display:block;font-size:10px;color:var(--gold-dim);letter-spacing:.2em;margin-bottom:3px}
+.board-close{display:none}
+.board-fab{display:none}
+/* ============ 真相之室 ============ */
+#screen-memory{justify-content:flex-start;align-items:center;padding:54px 20px 60px;overflow-y:auto}
+.memory-wrap{max-width:920px;width:100%}
+.memory-h2{text-align:center;font-family:var(--serif);color:var(--gold-light);letter-spacing:.18em;font-size:23px;font-weight:700;margin-bottom:12px}
+.memory-sub{text-align:center;font-size:13px;color:var(--text-dim);letter-spacing:.08em;line-height:1.9;margin-bottom:38px}
+.memory-stage{display:flex;flex-direction:column;gap:26px}
+.frag-card{
+  border:1px solid var(--gold-dim);border-radius:5px;overflow:hidden;
+  background:linear-gradient(160deg,rgba(29,24,54,.85),rgba(18,16,31,.9));
+  box-shadow:0 10px 34px rgba(0,0,0,.4)}
+.frag-head{
+  display:flex;align-items:center;gap:16px;padding:16px 24px;cursor:pointer;
+  background:rgba(201,168,106,.05);transition:background .25s}
+.frag-head:hover{background:rgba(201,168,106,.13)}
+.frag-num{
+  font-family:var(--serif);font-size:20px;color:var(--gold);width:46px;height:46px;flex:none;
+  border:1px solid var(--gold);border-radius:50%;display:flex;align-items:center;justify-content:center}
+.frag-head-txt{flex:1;min-width:0}
+.frag-title{font-family:var(--serif);font-size:17px;color:var(--gold-light);letter-spacing:.12em;margin-bottom:3px}
+.frag-hint{font-size:12px;color:var(--text-dim);letter-spacing:.08em}
+.frag-toggle{
+  flex:none;font-size:12px;color:var(--gold);border:1px solid var(--gold-dim);
+  border-radius:20px;padding:7px 16px;letter-spacing:.12em;transition:all .25s}
+.frag-head:hover .frag-toggle{background:rgba(201,168,106,.15)}
+.frag-body{display:none}
+.frag-card.open .frag-body{display:block;animation:fragReveal .7s ease}
+@keyframes fragReveal{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:translateY(0)}}
+.frag-img{width:100%;display:block;max-height:420px;object-fit:cover;border-bottom:1px solid var(--gold-dim);filter:saturate(.92) contrast(1.03)}
+.frag-text{padding:22px 28px 26px;font-size:14.5px;line-height:2.15;color:var(--text);text-align:left}
+.frag-text .frag-tag{
+  display:block;font-size:11px;letter-spacing:.3em;color:var(--candle);margin-bottom:12px}
+.frag-card.open .frag-toggle{background:rgba(201,168,106,.2);color:var(--gold-light)}
+.memory-actions{text-align:center;margin-top:38px}
+#toAccuseBtn:disabled{opacity:.35;cursor:not-allowed;letter-spacing:.2em}
+/* ============ 指认页 ============ */
+#screen-accuse{justify-content:center;align-items:center;padding:46px 20px}
+.accuse-wrap{max-width:720px;width:100%}
+.accuse-q{
+  background:var(--panel);border:1px solid var(--gold-dim);border-radius:4px;
+  padding:24px 28px;margin-bottom:22px;
+}
+.accuse-q h4{font-family:var(--serif);color:var(--gold-light);font-size:16.5px;letter-spacing:.08em;margin-bottom:16px}
+.accuse-q h4 .qnum{color:var(--gold-dim);margin-right:10px}
+.opt{
+  display:block;width:100%;text-align:left;
+  background:rgba(255,255,255,.03);border:1px solid rgba(201,168,106,.25);
+  color:var(--text);padding:13px 18px;border-radius:3px;margin-bottom:10px;
+  font-size:14px;line-height:1.6;cursor:pointer;transition:all .25s;font-family:var(--sans)}
+.opt:hover{background:rgba(201,168,106,.12)}
+.opt.picked{background:rgba(201,168,106,.22);border-color:var(--gold);color:var(--gold-light)}
+.accuse-actions{text-align:center;margin-top:8px}
+.accuse-layout{display:grid;grid-template-columns:1fr 280px;gap:24px;align-items:start}
+.accuse-main{min-width:0}
+.accuse-clues{
+  position:sticky;top:20px;max-height:calc(100vh - 48px);overflow-y:auto;
+  background:var(--panel);border:1px solid var(--gold-dim);border-radius:4px;
+  padding:20px 18px;align-self:start}
+.ac-close{display:none}
+.ac-fab-bar{display:none}
+.ac-fab{display:none}
+.ac-title{
+  font-family:var(--serif);color:var(--gold-light);font-size:14px;letter-spacing:.2em;
+  padding-bottom:14px;margin-bottom:14px;border-bottom:1px solid rgba(201,168,106,.25);
+  position:sticky;top:-20px;background:var(--panel);padding-top:2px}
+.ac-title span{color:var(--candle);font-size:12px;margin-left:6px}
+.ac-group{font-size:11px;letter-spacing:.2em;color:var(--gold-dim);margin:14px 0 8px}
+.ac-clue{
+  background:linear-gradient(170deg,#f3ead6,#e9dfc7);color:#3a3220;
+  border-radius:2px;padding:9px 12px;margin-bottom:9px;font-size:12px;line-height:1.6;
+  box-shadow:0 2px 6px rgba(0,0,0,.25);transform:rotate(-.3deg)}
+.ac-empty{font-size:12px;color:var(--text-dim);line-height:1.9;letter-spacing:.05em}
+/* ============ 结算页 ============ */
+#screen-ending{justify-content:center;align-items:center;padding:50px 20px}
+.ending-wrap{max-width:700px;width:100%;text-align:center}
+.ending-card{
+  border:1px solid var(--gold);
+  background:linear-gradient(170deg,rgba(29,24,54,.95),rgba(18,16,31,.95));
+  border-radius:4px;padding:44px 48px;position:relative;
+  box-shadow:0 0 60px rgba(201,168,106,.12)}
+.ending-card::before{content:"";position:absolute;inset:8px;border:1px solid rgba(201,168,106,.2);pointer-events:none}
+.ending-type{font-size:12px;letter-spacing:.5em;color:var(--candle);margin-bottom:14px}
+.ending-title{font-family:var(--serif);font-size:34px;font-weight:900;letter-spacing:.25em;text-indent:.25em;color:var(--gold-light);margin-bottom:28px}
+.ending-card .tarot-card{margin:0 auto 26px;width:120px;height:204px}
+.ending-text{font-size:15px;line-height:2.15;color:var(--text);text-align:left;margin-bottom:26px}
+.ending-story{
+  text-align:left;border:1px solid rgba(201,168,106,.4);border-radius:3px;
+  background:linear-gradient(170deg,rgba(243,234,214,.07),rgba(243,234,214,.03));
+  padding:24px 26px;margin-bottom:26px}
+.story-title{
+  font-family:var(--serif);font-size:14px;letter-spacing:.3em;color:var(--gold-light);
+  text-align:center;margin-bottom:18px;font-weight:700}
+.story-text{font-size:13.5px;line-height:2.1;color:var(--text);opacity:.92}
+.ending-revelation{
+  font-family:var(--serif);font-size:15px;line-height:2.2;color:var(--gold-light);
+  text-align:left;border-top:1px solid rgba(201,168,106,.3);padding-top:22px;
+  font-style:italic}
+.scores{display:flex;justify-content:center;gap:14px;margin:30px 0 8px;flex-wrap:wrap}
+.score{
+  border:1px solid var(--gold-dim);border-radius:3px;padding:14px 18px;min-width:110px;
+  background:rgba(255,255,255,.02)}
+.score .s-name{font-size:11px;letter-spacing:.25em;color:var(--text-dim);margin-bottom:7px}
+.score .s-val{font-family:var(--serif);font-size:24px;color:var(--gold);font-weight:700}
+.score .s-val small{font-size:13px;color:var(--gold-dim)}
+.ending-actions{margin-top:34px;display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+/* ============ 通用响应式 ============ */
+@media(max-width:900px){
+  .inv-body{grid-template-columns:1fr;grid-template-rows:auto 1fr;overflow:hidden}
+  .inv-cards{border-right:none;border-bottom:1px solid rgba(201,168,106,.15);
+    flex-direction:row;justify-content:center;gap:8px;overflow-x:auto;padding:10px 12px}
+  .inv-cards .tarot-card{width:82px;height:140px;flex:none}
+  .inv-cards .card-quota{display:none}
+  .inv-board{
+    display:none;position:fixed;inset:0;z-index:30;
+    border:none;background:linear-gradient(180deg,var(--bg2),var(--bg));
+    padding:26px 20px 40px;overflow-y:auto}
+  .inv-board.open{display:block}
+  .board-close{display:block;margin:0 auto 18px}
+  .board-fab{
+    display:flex;position:fixed;right:16px;bottom:86px;z-index:20;
+    background:var(--panel2);border:1px solid var(--gold);color:var(--gold-light);
+    border-radius:30px;padding:10px 18px;font-size:13px;letter-spacing:.1em;
+    box-shadow:0 6px 20px rgba(0,0,0,.5);cursor:pointer}
+  .board-fab b{color:var(--candle);margin-left:6px}
+  .inv-input{position:static;padding:12px 16px;flex-wrap:wrap}
+  .inv-input input{flex:1 1 100%;width:100%}
+  .inv-actions{display:flex;width:100%}
+  .inv-actions .act-btn{flex:1;padding:10px 2px;font-size:11px;letter-spacing:.05em}
+  .inv-chat{padding-bottom:10px}
+  .inv-top{padding:10px 14px}
+  .inv-top .case-name{font-size:13px}
+  .client-mini{width:30px;height:30px}
+  .brief-case{padding:24px 20px;grid-template-columns:1fr;gap:22px}
+  .brief-portrait{width:150px;margin:0 auto}
+  .brief-portrait img{max-height:210px;object-fit:cover;object-position:top}
+  .hero{min-height:300px;height:44vh}
+  .home-sub{font-size:12.5px;letter-spacing:.18em}
+  .home-body{padding:34px 16px 44px}
+  .ending-card{padding:30px 22px}
+  .ending-title{font-size:26px}
+  .spread-stage{gap:14px}
+  .tarot-card{width:104px;height:178px}
+  .slot-empty{width:104px;height:178px}
+  #screen-memory{padding:36px 14px 46px}
+  .memory-h2{font-size:19px;line-height:1.6}
+  .memory-stage{gap:18px}
+  .frag-head{padding:13px 16px;gap:12px}
+  .frag-num{width:38px;height:38px;font-size:16px}
+  .frag-title{font-size:15px}
+  .frag-hint{font-size:11px}
+  .frag-toggle{padding:6px 12px;font-size:11px}
+  .frag-img{max-height:230px}
+  .frag-text{padding:18px 18px 22px;font-size:13.5px;line-height:2.05}
+  .accuse-layout{grid-template-columns:1fr}
+  .accuse-clues{
+    display:none;position:fixed;inset:0;z-index:30;max-height:none;
+    border:none;border-radius:0;background:linear-gradient(180deg,var(--bg2),var(--bg));
+    padding:26px 22px 50px}
+  .accuse-clues.open{display:block}
+  .ac-close{display:block;margin:0 auto 18px}
+  .ac-fab-bar{display:block;text-align:center;margin-bottom:22px}
+  .ac-fab{
+    display:inline-flex;align-items:center;
+    background:var(--panel2);border:1px solid var(--gold);color:var(--gold-light);
+    border-radius:30px;padding:10px 22px;font-size:13px;letter-spacing:.1em;
+    box-shadow:0 4px 14px rgba(0,0,0,.4);cursor:pointer}
+  .ac-fab b{color:var(--candle);margin-left:8px}
+}
+</style>
+</head>
+<body>
+<div class="starfield" id="starfield"></div>
+<main id="app">
+<!-- ===== 视图：首页 ===== -->
+<section class="screen active" id="screen-home">
+  <div class="hero">
+    <img class="hero-img" src="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/ZJAIbEWoQoaAy2xePLDcdSbinVg" alt="深夜牌阵桌">
+    <div class="hero-veil"></div>
+    <div class="hero-content">
+      <div class="eyebrow" style="color:#e8d9b5">TAROT · MYSTERY · REASONING</div>
+      <h1 class="home-title">牌面之下</h1>
+      <p class="home-sub">每张牌背后，都藏着一个需要推理的真相</p>
+    </div>
+  </div>
+  <div class="home-body">
+    <div class="home-cards" id="homeCards"></div>
+    <button class="btn" onclick="go('brief')">开始占卜</button>
+    <p class="home-note">本作为互动推理故事，所有塔罗内容为游戏与娱乐设定，不代表真实占卜结果<br>案件 · 壹《妈妈的银行短信》原型演示版</p>
+  </div>
+</section>
+
+<!-- ===== 视图：案件档案 ===== -->
+<section class="screen" id="screen-brief">
+  <div class="brief-wrap">
+    <div class="eyebrow" style="text-align:center;margin-bottom:20px">案件档案 · 壹</div>
+    <div class="brief-case">
+      <div class="brief-portrait">
+        <img src="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/VoApbpLcXom07gxsIyrc6rdPnsc" alt="委托人周晓棠">
+        <div class="portrait-caption">委 托 人 · 周 晓 棠</div>
+      </div>
+      <div class="brief-main">
+        <div class="client-meta">
+          <h3>委托人：周晓棠</h3>
+          <p>24 岁 · 在外地工作 · 与母亲相依为命</p>
+        </div>
+        <p class="brief-text" id="briefText"></p>
+      </div>
+    </div>
+    <div class="brief-actions">
+      <button class="btn" id="briefBtn" onclick="go('spread')">进入牌阵室</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 视图：牌阵室 ===== -->
+<section class="screen" id="screen-spread">
+  <div class="spread-wrap">
+    <div class="eyebrow" style="text-align:center">三牌真相阵</div>
+    <div class="divider">人物 · 动机 · 真相</div>
+    <p class="spread-intro" id="spreadIntro"></p>
+    <div class="spread-stage" id="spreadStage"></div>
+    <p class="spread-hint" id="spreadHint">静心，然后抽取第一张牌</p>
+    <button class="btn" id="drawBtn" onclick="drawNext()">抽牌</button>
+    <p style="margin-top:22px"><button class="btn btn-ghost" id="investigateBtn" disabled onclick="startInvestigation()">开始调查</button></p>
+  </div>
+</section>
+
+<!-- ===== 视图：调查页 ===== -->
+<section class="screen" id="screen-investigate">
+  <div class="inv-top">
+    <span class="case-name">案件壹 · 妈妈的银行短信</span>
+    <div class="candle-wrap">
+      <img class="client-mini" src="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/VoApbpLcXom07gxsIyrc6rdPnsc" alt="委托人">
+      <div class="candle"><div class="flame" id="flame"></div><div class="candle-body"></div></div>
+      <span class="emotion-label" id="emotionText">委托人情绪：焦灼</span>
+    </div>
+  </div>
+  <div class="inv-body">
+    <div class="inv-col inv-cards" id="invCards"></div>
+    <div class="inv-col inv-chat" id="chatBox"></div>
+    <div class="inv-col inv-board" id="boardPanel">
+      <div class="board-title">线 索 板</div>
+      <button class="act-btn board-close" onclick="toggleBoard()">收　起</button>
+      <div class="board-empty" id="boardEmpty">已确认的事实<br>会以签条形式贴在这里</div>
+      <div id="boardList"></div>
+    </div>
+  </div>
+  <button class="board-fab" onclick="toggleBoard()">线索板<b id="fabCount">0</b></button>
+  <div class="inv-input">
+    <input type="text" id="askInput" placeholder="针对当前牌位发问……" onkeydown="if(event.key==='Enter')askQuestion()">
+    <div class="inv-actions">
+      <button class="act-btn" onclick="askQuestion()">问牌</button>
+      <button class="act-btn" id="visionBtn" onclick="seeVision()">观象</button>
+      <button class="act-btn" id="clientBtn" onclick="askClient()">追问委托人</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 视图：真相之室 ===== -->
+<section class="screen" id="screen-memory">
+  <div class="memory-wrap">
+    <div class="eyebrow" style="text-align:center;margin-bottom:12px">真相之室</div>
+    <h2 class="memory-h2">牌面已尽，残留的记忆凝成了三个场景</h2>
+    <p class="memory-sub">逐个翻开它们，看清这个故事的片段——然后，给出你的判断。</p>
+    <div class="memory-stage" id="memoryStage"></div>
+    <div class="memory-actions">
+      <button class="btn" id="toAccuseBtn" disabled onclick="go('accuse')">我已看清 · 前往指认</button>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 视图：指认页 ===== -->
+<section class="screen" id="screen-accuse">
+  <div class="accuse-wrap">
+    <div class="eyebrow" style="text-align:center;margin-bottom:8px">指认真相</div>
+    <h2 style="text-align:center;font-family:var(--serif);color:var(--gold-light);letter-spacing:.2em;font-size:24px;margin-bottom:20px">牌面已经摊开，请给出你的推理</h2>
+    <p class="ac-fab-bar"><button class="ac-fab" onclick="toggleAccuseClues()">查看已查明的线索 <b id="acFabCount">0</b></button></p>
+    <div class="accuse-layout">
+      <div class="accuse-main">
+        <div id="accuseBox"></div>
+        <div class="accuse-actions">
+          <button class="btn" id="finalBtn" onclick="goEnding()">揭开真相</button>
+        </div>
+      </div>
+      <aside class="accuse-clues" id="accuseClues">
+        <button class="act-btn ac-close" onclick="toggleAccuseClues()">收　起</button>
+        <div class="ac-title">已查明的事实 <span id="acCount">0</span></div>
+        <div id="accuseClueList"></div>
+      </aside>
+    </div>
+  </div>
+</section>
+
+<!-- ===== 视图：结算页 ===== -->
+<section class="screen" id="screen-ending">
+  <div class="ending-wrap" id="endingContent"></div>
+</section>
+</main>
+<script>
+/* ============ 22 张大阿卡纳 ============ */
+const TAROT = [
+  {num:"0",  name:"愚人", en:"THE FOOL", up:"新的开始，凭直觉出发", rv:"鲁莽轻信，只看见想看的"},
+  {num:"I",  name:"魔术师", en:"THE MAGICIAN", up:"线索齐备，真相在你手中", rv:"有人在操纵与欺瞒"},
+  {num:"II", name:"女祭司", en:"THE HIGH PRIESTESS", up:"直觉显现，隐藏的真相", rv:"直觉被情绪遮蔽，易误判"},
+  {num:"III",name:"女皇", en:"THE EMPRESS", up:"母性与照料，无言的付出", rv:"过度保护，把人护在身后"},
+  {num:"IV", name:"皇帝", en:"THE EMPEROR", up:"秩序与责任，有人在撑着家", rv:"专断控制，独自承担一切"},
+  {num:"V",  name:"教皇", en:"THE HIEROPHANT", up:"传统与恩情，代代相传", rv:"被旧观念束缚，难开口"},
+  {num:"VI", name:"恋人", en:"THE LOVERS", up:"关系的联结与抉择", rv:"隔阂未解，彼此误会"},
+  {num:"VII",name:"战车", en:"THE CHARIOT", up:"凭意志推进，方向明确", rv:"情绪失控，方向迷失"},
+  {num:"VIII",name:"力量", en:"STRENGTH", up:"以柔克刚，温柔的勇气", rv:"自我怀疑，被焦虑吞没"},
+  {num:"IX", name:"隐者", en:"THE HERMIT", up:"独自追寻，真相在深处", rv:"封闭孤立，把秘密藏太久"},
+  {num:"X",  name:"命运之轮", en:"WHEEL OF FORTUNE", up:"命运循环，善意轮转", rv:"困在往事里，身不由己"},
+  {num:"XI", name:"正　义", en:"JUSTICE", up:"因果分明，看见事实全貌", rv:"只看见一半真相，失之偏颇"},
+  {num:"XII",name:"倒吊人", en:"THE HANGED MAN", up:"换个角度，看见牺牲", rv:"执念于自己的判断"},
+  {num:"XIII",name:"死神", en:"DEATH", up:"误解结束，真相新生", rv:"抗拒改变，僵持不下"},
+  {num:"XIV",name:"节制", en:"TEMPERANCE", up:"和解与疗愈，心意接通", rv:"未能沟通，隔阂仍在"},
+  {num:"XV", name:"恶魔", en:"THE DEVIL", up:"看见执念与隐秘的束缚", rv:"误以为是骗局，作茧自缚"},
+  {num:"XVI",name:"高塔", en:"THE TOWER", up:"谎言崩塌，危机也是转机", rv:"贸然一击，砸塌了苦心"},
+  {num:"XVII",name:"星星", en:"THE STAR", up:"希望与疗愈，善有回响", rv:"失望之下，信念动摇"},
+  {num:"XVIII",name:"月亮", en:"THE MOON", up:"幻象之下藏着隐情", rv:"迷雾散去，虚惊一场"},
+  {num:"XIX",name:"太阳", en:"THE SUN", up:"真相大白，彼此释然", rv:"仍有一层窗户纸没捅破"},
+  {num:"XX", name:"审　判", en:"JUDGEMENT", up:"幡然醒悟，重新理解家人", rv:"自责与回避，错过和解"},
+  {num:"XXI",name:"世界", en:"THE WORLD", up:"善意圆满，循环归一", rv:"差一步，未竟的闭环"}
+];
+const SLOTS = [
+  {key:"person", label:"人物牌", desc:"谁是关键人物"},
+  {key:"motive", label:"动机牌", desc:"为什么会这样"},
+  {key:"truth",  label:"真相牌", desc:"被隐瞒的事"}
+];
+function emblemSVG(){
+  return '<svg class="card-emblem" viewBox="0 0 100 100" fill="none" stroke="#8a774e" stroke-width="1.3">'+
+  '<circle cx="50" cy="50" r="40" opacity=".55"/><circle cx="50" cy="50" r="31" opacity=".35"/>'+
+  '<path d="M50 18l6.4 21.7L80 42l-18.6 14.3L67 80l-17-11.4L33 80l5.6-23.7L20 42l23.6-2.3z" stroke-width="1.4"/>'+
+  '<circle cx="50" cy="50" r="5" fill="#8a774e" stroke="none"/></svg>';
+}
+function cardBackSVG(){
+  return '<svg viewBox="0 0 100 100" fill="none" stroke="#c9a86a" stroke-width="1.2" style="width:62%">'+
+  '<circle cx="50" cy="50" r="42" opacity=".5"/><circle cx="50" cy="50" r="34" opacity=".35"/>'+
+  '<path d="M50 20l7.4 25.2L84 48l-21 16.2L70 90l-20-13.4L30 90l7-25.8L16 48l26.6-2.8z" stroke-width="1.4"/>'+
+  '<circle cx="50" cy="50" r="5.5" fill="#c9a86a" stroke="none"/></svg>';
+}
+function cardHTML(card, reversed, flipped){
+  return '<div class="tarot-card '+(flipped?'flipped':'')+' '+(reversed?'reversed':'')+'">'+
+    '<div class="card-inner"><div class="card-face card-back">'+cardBackSVG()+'</div>'+
+    '<div class="card-face card-front"><div class="card-num">'+card.num+'</div>'+
+    '<div class="card-ornament">✦</div>'+emblemSVG()+'<div class="card-ornament">✦</div>'+
+    '<div class="card-title"><div class="card-name">'+card.name+'</div><div class="card-en">'+card.en+'</div></div></div></div></div>';
+}
+/* ============ 案件事实点（按牌位，含正/逆位回答） ============ */
+const FACTS = {
+  person:[
+    {id:"F1", kw:["收款人","账户","谁收","骗子","传销","赵秀琴","是谁"],
+      up:"牌面浮现一个真实的名字：赵秀琴，六十岁，外省乡下的普通农妇。账户属于她本人，不是任何公司或机构。",
+      rv:"牌上的人影模糊而苍老——她不像商人，更像一个被生活压弯了腰的老人。",
+      client:"我查过转账记录，收款人确实叫赵秀琴……可我根本不认识什么赵姨。",
+      clue:"收款人赵秀琴，60岁，外省农妇，不是公司或传销组织"},
+    {id:"F2", kw:["她家","丈夫","什么人","家里","几口"],
+      up:"这户人家只有三代女人：赵秀琴、她的女儿，和一个孩子。牌面上没有男人的身影。",
+      rv:"牌中丈夫的位置是空的，空得像很久没有人坐过。",
+      client:"这个我没细查……她家里有什么人？",
+      clue:"赵秀琴丈夫已去世，家中只有女儿和外孙女"},
+    {id:"F3", kw:["医院","钱去哪","住院","收费","钱到哪","儿童医院","去了哪","去哪"],
+      up:"金币流向的终点是一条白色走廊——市儿童医院。有几笔钱根本没过私人账户，直接交到了住院收费处。",
+      rv:"金币绕过了所有商场和保健品店，流进了一片消毒水味的白色里。",
+      client:"我还以为钱全被骗子拿走了……原来还有医院？",
+      clue:"部分钱直接交进了市儿童医院住院账户"},
+    {id:"F4", kw:["孩子","小孩","生病","白血病","朵朵","几岁","外孙女"],
+      up:"一个六岁的女孩躺在病床上，腕上戴着红色住院腕带。牌名写着：急性淋巴细胞白血病。她在化疗。",
+      rv:"孩子的气息很微弱，她正在一场漫长的治疗里。",
+      client:"一个……生病的孩子？我原本只以为是老人被骗，我没想过会有个孩子。",
+      clue:"赵秀琴的外孙女朵朵，6岁，急性淋巴细胞白血病，化疗中"},
+    {id:"F5", kw:["舅舅","借钱","两万","2万","借"],
+      up:"你舅舅手里握着一条线：去年你母亲向他借过两万块，只说是帮一个“老姐妹”。",
+      rv:"舅舅欲言又止，他知道的比他说的多。",
+      client:"我问过舅舅，他支支吾吾说：“你妈帮一个老姐妹，别的她不让我说。”",
+      clue:"妈妈找舅舅借了2万，帮一个老姐妹"}
+  ],
+  motive:[
+    {id:"F6", kw:["2006","小时候","抢救","肺炎","四岁","4岁","二十年前","那年","过去"],
+      up:"时间回到二十年前。雪夜，市医院的抢救灯亮着。一个四岁的女孩躺在病床上，呼吸衰竭。",
+      rv:"你看不清那孩子的脸，只听见一个年轻母亲在哭。",
+      client:"二十年前……我只知道小时候得过肺炎，住过院，别的都不记得了。",
+      clue:"2006年冬，4岁的我在市医院抢救，呼吸衰竭"},
+    {id:"F7", kw:["谁给的","3000","病房","手术费","恩人","三千","为什么欠","欠","转钱","打钱","为什么给她","为什么给"],
+      up:"另一张病床上，一个陌生女人数出一沓钱，塞进你母亲手里：“先救孩子。”那是她丈夫的手术费。",
+      rv:"两双手在雪夜里推让同一个信封，谁也不肯先松开。",
+      client:"恩人……？什么恩人？你说清楚，谁的钱？",
+      clue:"同病房的赵秀琴拿出丈夫的手术费3000元先救了我"},
+    {id:"F8", kw:["疤","普通肺炎","我不记得","胸口","伤口","为什么不告诉"],
+      up:"女孩活了下来。可所有人都对她说：你只是普通肺炎。牌面垂下，你看见自己胸口有一道浅浅的疤。",
+      rv:"真相被藏在“普通肺炎”四个字后面，连当事人自己都不知道。",
+      client:"……疤？我从小就有，我妈一直说那是肺炎留下的。（她的声音发颤）你这么一说，我突然有点慌。",
+      clue:"我不是普通肺炎，家人隐瞒了真实病情"},
+    {id:"F9", kw:["怎么断的","失联","找过","地址","断了","联系","为什么不联系"],
+      up:"转院、搬迁、没有电话。两家人在二十年前走散，你母亲手里只剩一张借条和一个早已不存在的地址。",
+      rv:"一张写着地址的纸，在二十年里被翻到边角发软。",
+      client:"我从没听她提过谁……她这些年，一个人记着这些？",
+      clue:"转院失联，妈妈找了赵秀琴很多年"},
+    {id:"F10", kw:["怎么找到","一年前","病友群","寻人","找到","刷到"],
+      up:"一年前，手机屏幕的光映在她脸上——病友群里的一条消息，让她找到了那个名字。也是那天，她第一次知道朵朵的病。",
+      rv:"她找了二十年的名字，突然亮了，而那名字后面跟着“求助”两个字。",
+      client:"一年前……那时候她开始频繁刷手机，我还笑她学会上网了。",
+      clue:"一年前，妈妈通过病友群和寻人终于找到了赵秀琴"},
+    {id:"F11", kw:["3000怎么","捡废品","生活费","零工","退休金","纸箱","怎么花","省"],
+      up:"她把四千块退休金分成两份：三千还债，一千活命。路灯下她在捡纸箱，清晨她在做零工。",
+      rv:"牌面上，她把口袋翻了个底朝天，却把信封推给别人。",
+      client:"我见过她在小区捡纸箱……我以为她是闷得慌，她说是帮人代拿快递。",
+      clue:"妈妈每月只花1000，捡废品做零工，按连本带息还债"},
+    {id:"F12", kw:["为什么撒谎","保健品","为什么不说","骗我","为什么隐瞒","搪塞"],
+      up:"“保健品”三个字是一堵墙。墙后是她不敢说的话：她怕你知道自己差点死过，更怕你觉得欠了谁。",
+      rv:"她不是在骗你，她是在把你挡在真相之外。",
+      client:"她为什么宁可被我误会……也不肯告诉我？",
+      clue:"谎称保健品，是怕我知道真相、怕我背债"}
+  ],
+  truth:[
+    {id:"F13", kw:["真相","到底怎么回事","报恩","骗局","不是骗","被骗","是不是骗","结论"],
+      up:"迷雾散开。没有骗子，没有传销，没有保健品骗局。这是一笔债，一笔记了二十年的、关于恩情的债。",
+      rv:"你以为的罪案，在牌面尽头变成了一场你看不懂的偿还。",
+      client:"所以……从一开始就没有骗局？",
+      clue:"这不是骗局，是跨越20年的报恩"},
+    {id:"F14", kw:["我的命","恩人","救回","亏欠","救命","我怎么活"],
+      up:"你的命，是一个陌生人的善意托住的。而你母亲，带着那份亏欠，活了整整二十年。",
+      rv:"你活下来的代价，是母亲二十年不敢放下。",
+      client:"我……（她沉默了很久）我一直以为我只是普通肺炎。",
+      clue:"我的命是赵秀琴的善意救回来的，妈妈亏欠了二十年"},
+    {id:"F15", kw:["妈妈身体","体检","药","心脏","血压","冠心病","身体","什么病","生病"],
+      up:"一个白色药瓶滚到角落。标签让你心里一沉：高血压、冠心病早期，日期是半年前。",
+      rv:"她的心跳声在牌里很乱。她在赶时间——可她在赶什么？",
+      client:"她的药？她从来没说过心脏不舒服……她是不是在赶时间？",
+      clue:"妈妈半年前查出高血压和冠心病早期，她在赶时间"},
+    {id:"F16", kw:["拒收","肯收","压岁钱","不收","推让"],
+      up:"牌面里，赵秀琴把信封推回去，你母亲又推回去，反复三次。最后你母亲说：就当是给孩子的压岁钱。",
+      rv:"一笔钱在两个母亲之间推来推去，谁都不肯占了谁的便宜。",
+      client:"人家肯收吗……",
+      clue:"赵秀琴起初拒收，妈妈以压岁钱名义坚持"},
+    {id:"F17", kw:["铁盒","借条","拨浪鼓","旧东西","缴费单","柜子","藏"],
+      up:"衣柜最深处，一个掉漆的铁盒。里面是泛黄的缴费单、一张借条，还有一只红色的小拨浪鼓。",
+      rv:"所有的秘密，都被她收进了一个不打算打开的盒子。",
+      client:"我想起来了……我小时候好像真的有一只红色的小鼓。",
+      clue:"铁盒里有缴费单、借条和赵秀琴当年买的小拨浪鼓"}
+  ]
+};
+const VISIONS = {
+  person:"长长的医院走廊，一双布满皱纹的手；一只戴着红色住院腕带的小手；窗外，是二十年前的雪。",
+  motive:"一沓零钱被数了又数，装进信封；老式缝纫机旁；路灯下，一个母亲蹲在纸箱旁的背影。",
+  truth:"一个掉漆的铁盒；泛黄的纸和一只红色拨浪鼓；胸口淡淡的疤；雨夜医院门口，两个女人互相推搡着一个信封。"
+};
+const SUGGEST = {
+  person:["收款的人到底是谁？","这些钱最后去了哪里？","妈妈为什么找舅舅借钱？"],
+  motive:["妈妈为什么要给她转钱？","二十年前到底发生了什么？","她为什么要撒谎骗我？"],
+  truth:["被隐瞒的真相是什么？","妈妈的身体怎么样？","她还藏着什么东西？"]
+};
+const BRIEF = "塔罗师，我实在没办法了，我妈可能被骗了。\n\n她退休金才四千出头，我上周拿她旧手机帮她清垃圾，发现她每个月15号都给一个陌生账户转3000块，整整一年了。\n\n我问她，她支支吾吾，先说“买了点保健品”，后来说“你别管”。她手机里加了一堆养生讲座群，去年还找我舅借了两万块。\n\n她这几天去了外地，说是去“听课”。我急了，在电话里说了她两句，她直接挂了，现在都不接我电话。\n\n她一辈子省吃俭用，买件超过一百块的衣服都要犹豫三天——她不可能乱花钱。你帮我算算，她是不是被传销组织拿捏了？我现在就想报警，把钱拦下来。";
+
+/* ============ 游戏状态 ============ */
+const state = {
+  drawn: [],           // 三张牌
+  drawCount: 0,
+  selectedSlot: "person",
+  unlocked: {},        // factId -> slot
+  quota: {person:3, motive:3, truth:3},
+  visionUsed: {person:false, motive:false, truth:false},
+  seenFragments: [false,false,false],
+  clientAsks: 0,
+  emotion: 70,
+  answers: {q1:null, q2:null, q3:[]}
+};
+state.fragmentsAllSeen=function(){return this.seenFragments.every(Boolean);};
+/* ============ 初始化星空与首页 ============ */
+function makeStars(){
+  let dots = "";
+  for(let i=0;i<70;i++){
+    const x=(Math.random()*100).toFixed(1), y=(Math.random()*100).toFixed(1),
+      r=(Math.random()*1.1+.3).toFixed(1), d=(Math.random()*4).toFixed(1);
+    dots += '<circle class="star" cx="'+x+'" cy="'+y+'" r="'+r+'" fill="#c9a86a" style="animation-delay:'+d+'s"/>';
+  }
+  document.getElementById("starfield").innerHTML =
+    '<svg viewBox="0 0 100 100" preserveAspectRatio="none">'+dots+'</svg>';
+}
+makeStars();
+(function homeCards(){
+  const idxs=[17,20,10];
+  document.getElementById("homeCards").innerHTML = idxs.map(i=>cardHTML(TAROT[i], i===10, true)).join("");
+  document.querySelectorAll("#homeCards .tarot-card").forEach(c=>c.classList.add("flipped"));
+})();
+/* ============ 路由 ============ */
+function go(name){
+  document.querySelectorAll(".screen").forEach(s=>s.classList.remove("active"));
+  document.getElementById("screen-"+name).classList.add("active");
+  window.scrollTo(0,0);
+  if(name==="brief") typeBrief();
+  if(name==="spread") initSpread();
+  if(name==="investigate") initInvestigate();
+  if(name==="memory") initMemory();
+  if(name==="accuse") initAccuse();
+}
+/* ============ 打字机 ============ */
+let typeTimer=null;
+function typeBrief(){
+  const el=document.getElementById("briefText");
+  if(el.dataset.done) return;
+  document.getElementById("briefBtn").disabled=true;
+  el.innerHTML='<span class="type-caret"></span>';
+  let i=0;
+  clearInterval(typeTimer);
+  typeTimer=setInterval(()=>{
+    i++;
+    el.innerHTML=BRIEF.slice(0,i).replace(/\n/g,"<br>")+'<span class="type-caret"></span>';
+    if(i>=BRIEF.length){
+      clearInterval(typeTimer);
+      el.innerHTML=BRIEF.replace(/\n/g,"<br>");
+      el.dataset.done="1";
+      document.getElementById("briefBtn").disabled=false;
+    }
+  }, 28);
+}
+/* ============ 牌阵室 ============ */
+function initSpread(){
+  state.drawn=[]; state.drawCount=0;
+  document.getElementById("investigateBtn").disabled=true;
+  document.getElementById("drawBtn").disabled=false;
+  document.getElementById("spreadHint").textContent="静心，然后抽取第一张牌";
+  document.getElementById("spreadIntro").textContent="“请想着你的问题，依次抽出三张牌。它们将分别告诉你：事件中的关键人物、行为背后的动机，以及被藏起来的真相。”";
+  const stage=document.getElementById("spreadStage");
+  stage.innerHTML=SLOTS.map((s,i)=>
+    '<div class="slot" id="slot-'+i+'"><div class="slot-label">'+s.label+'</div>'+
+    '<div class="slot-empty"><svg class="plus" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4"><path d="M12 5v14M5 12h14"/></svg></div>'+
+    '<div class="card-caption"></div></div>').join("");
+}
+function drawNext(){
+  const i=state.drawCount;
+  if(i>=3) return;
+  const used=state.drawn.map(d=>d.cardIdx);
+  let idx;
+  do{ idx=Math.floor(Math.random()*TAROT.length); }while(used.includes(idx));
+  const reversed=Math.random()<0.5;
+  state.drawn.push({slot:SLOTS[i].key, cardIdx:idx, reversed});
+  const slot=document.getElementById("slot-"+i);
+  slot.innerHTML='<div class="slot-label">'+SLOTS[i].label+'</div>'+cardHTML(TAROT[idx],reversed,false)+
+    '<div class="card-caption '+(reversed?'reversed':'')+'"></div>';
+  const card=slot.querySelector(".tarot-card");
+  card.style.animation="none";
+  setTimeout(()=>{ card.classList.add("flipped");
+    const pos=reversed?"逆位":"正位";
+    const meaning=reversed?TAROT[idx].rv:TAROT[idx].up;
+    const cardName=TAROT[idx].name.replace(/\s/g,"");
+    slot.querySelector(".card-caption").innerHTML =
+      pos+" · "+SLOTS[i].label+"（"+SLOTS[i].desc+"）"+
+      '<span class="cap-meaning'+(reversed?' rv':'')+'">'+cardName+" · "+pos+"："+meaning+"</span>";
+  }, 350);
+  state.drawCount++;
+  const hints=["第二张牌，代表动机","最后一张牌，代表真相"];
+  if(state.drawCount<3){
+    document.getElementById("spreadHint").textContent=hints[state.drawCount-1];
+  }else{
+    document.getElementById("spreadHint").textContent="牌阵已成。";
+    document.getElementById("drawBtn").disabled=true;
+    document.getElementById("investigateBtn").disabled=false;
+  }
+}
+/* ============ 调查页 ============ */
+function startInvestigation(){
+  if(state.drawCount<3) return;
+  go('investigate');
+}
+function initInvestigate(){
+  state.selectedSlot=state.drawn[0].slot;
+  const box=document.getElementById("invCards");
+  box.innerHTML=state.drawn.map((d,i)=>{
+    const c=TAROT[d.cardIdx];
+    return '<div class="tarot-card selectable flipped '+(d.reversed?'reversed':'')+'" data-slot="'+d.slot+'" onclick="selectSlot(\''+d.slot+'\')">'+
+      '<div class="card-inner"><div class="card-face card-back">'+cardBackSVG().replace('style="width:62%"','')+'</div>'+
+      '<div class="card-face card-front"><div class="card-num">'+c.num+'</div><div class="card-ornament">✦</div>'+emblemSVG()+'<div class="card-ornament">✦</div>'+
+      '<div class="card-title"><div class="card-name">'+c.name+'</div><div class="card-en">'+c.en+'</div></div></div></div>'+
+      '<div class="card-quota" id="quota-'+d.slot+'">'+SLOTS[i].label+' · 提问 <b>3</b>/3</div></div>';
+  }).join("");
+  const chat=document.getElementById("chatBox");
+  chat.innerHTML='';
+  addMsg("system","","——你已经在牌阵前坐下。选择左侧的牌位向它发问，或点击「观象」查看牌面幻象；也可以追问委托人。每张牌只能问 3 次。");
+  const first=state.drawn[0];
+  const firstWho=(first.reversed?"逆位":"正位")+" · 人物牌";
+  addMsg("card",firstWho,"请先告诉我：收款的人是谁？");
+  renderSuggest();
+  selectSlot("person");
+  renderBoard();
+}
+function selectSlot(slot){
+  state.selectedSlot=slot;
+  document.querySelectorAll(".inv-cards .tarot-card").forEach(c=>{
+    c.classList.toggle("selected", c.dataset.slot===slot);
+  });
+  renderSuggest();
+}
+function renderSuggest(){
+  const old=document.querySelector(".suggest-row");
+  if(old) old.remove();
+  const chat=document.getElementById("chatBox");
+  const row=document.createElement("div");
+  row.className="suggest-row";
+  row.innerHTML=SUGGEST[state.selectedSlot].map(q=>'<button class="suggest-chip" onclick="quickAsk(\''+q+'\')">'+q+'</button>').join("");
+  chat.appendChild(row);
+  chat.scrollTop=chat.scrollHeight;
+}
+function addMsg(type, who, text){
+  const chat=document.getElementById("chatBox");
+  const row=document.querySelector(".suggest-row");
+  const div=document.createElement("div");
+  div.className="msg msg-"+type;
+  div.innerHTML=(who?'<span class="who">'+who+'</span>':"")+text;
+  chat.insertBefore(div,row);
+  chat.scrollTop=chat.scrollHeight;
+}
+function quickAsk(q){
+  document.getElementById("askInput").value=q;
+  askQuestion();
+}
+/* 问牌：关键词匹配 + 牌位白名单（防泄底） */
+function askQuestion(){
+  const input=document.getElementById("askInput");
+  const text=input.value.trim();
+  if(!text) return;
+  const slot=state.selectedSlot;
+  if(state.quota[slot]<=0){
+    addMsg("system","","这张牌的牌意已经用尽了，选择另一张牌。");
+    return;
+  }
+  addMsg("user","",text);
+  input.value="";
+  state.quota[slot]--;
+  updateQuota();
+  const card=state.drawn.find(d=>d.slot===slot);
+  const who=(card.reversed?"逆位":"正位")+" · "+SLOTS.find(s=>s.key===slot).label;
+  const facts=FACTS[slot];
+  let hit=null;
+  for(const f of facts){
+    if(f.kw.some(k=>text.includes(k))){ hit=f; break; }
+  }
+  if(hit){
+    const first=!state.unlocked[hit.id];
+    state.unlocked[hit.id]=slot;
+    const answer=card.reversed?hit.rv:hit.up;
+    addMsg("card"+(card.reversed?" reversed":""), who, answer);
+    if(first) renderBoard();
+  }else{
+    // 检查是否问到了其他牌位的内容
+    const other=Object.keys(FACTS).filter(k=>k!==slot).flatMap(k=>FACTS[k])
+      .find(f=>f.kw.some(k=>text.includes(k)));
+    if(other){
+      addMsg("card", who, "这张牌没有显示答案。你问的事，也许属于另一张牌。");
+    }else{
+      addMsg("card", who, "牌面模糊，像隔着一层雾。换一个角度，或试试「观象」。");
+    }
+  }
+  checkInvestigationDone();
+}
+/* 观象：每牌位一次，氛围线索 */
+function seeVision(){
+  const slot=state.selectedSlot;
+  if(state.visionUsed[slot]){
+    addMsg("system","","这个位置的幻象已经显现过了。");
+    return;
+  }
+  state.visionUsed[slot]=true;
+  addMsg("vision","牌面幻象",VISIONS[slot]);
+  checkInvestigationDone();
+}
+/* 追问委托人：带情绪变化 */
+function askClient(){
+  const text=document.getElementById("askInput").value.trim();
+  addMsg("user","",text||"（你想问问委托人……）");
+  document.getElementById("askInput").value="";
+  state.clientAsks++;
+  // 情绪触发
+  if(/疤|小时候|胸口|你吼|老糊涂|翻.*手机|偷看|手机/.test(text)){
+    state.emotion=Math.max(15,state.emotion-18);
+    addMsg("client","委托人（声音发颤）","我……我不是故意翻她手机的，我就是太急了。（她顿了很久）对不起，我现在心里很乱，让我一个人待一会儿。");
+  }else if(state.emotion<40){
+    addMsg("client","委托人（语气疲惫）","对不起，我心里很乱……我先把我知道的告诉你："+pickClientReply(text));
+  }else{
+    addMsg("client","委托人周晓棠",pickClientReply(text));
+  }
+  updateEmotion();
+  checkInvestigationDone();
+}
+function pickClientReply(text){
+  const all=FACTS.person.concat(FACTS.motive).concat(FACTS.truth);
+  const hit=all.find(f=>f.kw.some(k=>text.includes(k)) && state.unlocked[f.id]);
+  if(hit) return hit.client;
+  if(/报警|怎么办|拦截|冻结/.test(text)) return "我……我也想过报警。可万一是我搞错了呢？我想先弄清楚，再决定。";
+  return "我知道的都在那张转账截图里了。你问我，我也不知道她还瞒了我多少事。";
+}
+function updateQuota(){
+  state.drawn.forEach(d=>{
+    const el=document.getElementById("quota-"+d.slot);
+    if(el){
+      const label=SLOTS.find(s=>s.key===d.slot).label;
+      el.innerHTML=label+' · 提问 <b>'+state.quota[d.slot]+'</b>/3';
+    }
+  });
+}
+function updateEmotion(){
+  const flame=document.getElementById("flame");
+  const label=document.getElementById("emotionText");
+  const scale=(0.5+state.emotion/130).toFixed(2);
+  flame.style.transform="translateX(-50%) scale("+scale+")";
+  const lv=state.emotion>55?"焦灼":state.emotion>30?"低落":"哽咽";
+  label.textContent="委托人情绪："+lv;
+}
+function renderBoard(){
+  const list=document.getElementById("boardList");
+  const empty=document.getElementById("boardEmpty");
+  const ids=Object.keys(state.unlocked);
+  empty.style.display=ids.length?"none":"block";
+  const fab=document.getElementById("fabCount");
+  if(fab) fab.textContent=ids.length;
+  const slotName={person:"人物",motive:"动机",truth:"真相"};
+  list.innerHTML=ids.map(id=>{
+    const f=FACTS.person.concat(FACTS.motive).concat(FACTS.truth).find(x=>x.id===id);
+    return '<div class="clue"><span class="clue-tag">'+slotName[state.unlocked[id]]+'</span>'+f.clue+'</div>';
+  }).join("");
+}
+function toggleBoard(){
+  document.getElementById("boardPanel").classList.toggle("open");
+}
+function checkInvestigationDone(){
+  const total=state.quota.person+state.quota.motive+state.quota.truth;
+  if(total<=0){
+    const old=document.querySelector(".suggest-row");
+    if(old) old.remove();
+    const chat=document.getElementById("chatBox");
+    const row=document.createElement("div");
+    row.className="suggest-row";
+    row.style.alignSelf="center";
+    row.innerHTML='<button class="btn" style="padding:11px 26px;font-size:13px" onclick="go(\'memory\')">牌面已尽 · 前往真相之室</button>';
+    chat.appendChild(row);
+    chat.scrollTop=chat.scrollHeight;
+  }
+}
+/* ============ 真相之室 ============ */
+const IMG_BASE="https://media.doubao.com/space/api/box/stream/download/all_by_mount_point/";
+const FRAGMENTS=[
+  {img:IMG_BASE+"UBambVflzo2cHBx2hdTc7mCNnpN",
+   title:"碎片一 · 雪夜的信封",
+   hint:"二十年前的市医院，抢救室的红灯亮着",
+   tag:"记忆浮现 · 二〇〇六年冬",
+   text:"雪下得很大。走廊尽头，抢救室的红灯亮着——四岁的你呼吸衰竭，母亲凑不齐三千块抢救费，在走廊里哭得站不稳。\n\n同病房的乡下女人赵秀琴，把丈夫等着手术的钱数出三千，塞进你母亲手里，只说了四个字：先救孩子。\n\n两双手在雪夜里推让同一个信封，谁也不肯先松开。最后你母亲跪下了，赵秀琴把她拉起来，说：钱，以后还；人，先活。"},
+  {img:IMG_BASE+"HEO8bS6QGoSelixjikDcRvrvnbc",
+   title:"碎片二 · 路灯下的纸箱",
+   hint:"此后二十年，每个夜晚她都在灯下",
+   tag:"记忆浮现 · 二十年",
+   text:"你活了下来。转院、搬迁、没有电话，两家人在那个年代走散了。你母亲手里只剩一张借条，和一个早已不存在的地址。\n\n此后的二十年，她做零工、捡纸箱，把四千块退休金分成两份：三千还债，一千活命。她记得那沓钱的厚度，记得利息该怎么算，也记得那个名字——赵秀琴。\n\n她找了很多年，找了很多年。"},
+  {img:IMG_BASE+"DBXLb5i9MoC6erxoRqecfJffnSc",
+   title:"碎片三 · 掉漆的铁盒",
+   hint:"她把所有秘密，都收进了不打算打开的盒子",
+   tag:"记忆浮现 · 现在",
+   tag2:"",
+   text:"一年前，她在病友群里终于找到了那个名字。赵秀琴的丈夫早已过世，她六岁的外孙女朵朵，得了急性淋巴细胞白血病，正在化疗。\n\n从那天起，她把省下的钱一笔笔寄过去；赵秀琴拒收，她就说，算是给孩子的压岁钱。\n\n衣柜最深处的铁盒里，是泛黄的缴费单、一张借条，和一只给你买过的红色小拨浪鼓。盒底还有一张半年前的体检报告——高血压，冠心病早期。\n\n她没有告诉任何人。她是在赶时间。"}
+];
+function initMemory(){
+  const stage=document.getElementById("memoryStage");
+  stage.innerHTML=FRAGMENTS.map((f,i)=>
+    '<div class="frag-card" id="frag-'+i+'">'+
+      '<div class="frag-head" onclick="openFragment('+i+')">'+
+        '<div class="frag-num">'+["壹","贰","叁"][i]+'</div>'+
+        '<div class="frag-head-txt"><div class="frag-title">'+f.title+'</div>'+
+        '<div class="frag-hint">'+f.hint+'</div></div>'+
+        '<div class="frag-toggle" id="fragToggle-'+i+'">翻开</div>'+
+      '</div>'+
+      '<div class="frag-body"><img class="frag-img" src="'+f.img+'" alt="'+f.title+'">'+
+      '<div class="frag-text"><span class="frag-tag">'+f.tag+'</span>'+f.text.replace(/\n/g,"<br>")+'</div></div>'+
+    '</div>').join("");
+  document.getElementById("toAccuseBtn").disabled=!state.fragmentsAllSeen();
+}
+function openFragment(i){
+  const card=document.getElementById("frag-"+i);
+  const already=card.classList.contains("open");
+  card.classList.add("open");
+  const t=document.getElementById("fragToggle-"+i);
+  if(t) t.textContent="已翻开";
+  if(!already){
+    state.seenFragments[i]=true;
+    if(state.fragmentsAllSeen()) document.getElementById("toAccuseBtn").disabled=false;
+  }
+}
+/* ============ 指认页 ============ */
+const QUESTIONS = [
+  {id:"q1", type:"single", title:"① 收款的赵秀琴，到底是谁？",
+   opts:[
+     {k:"A", text:"养生讲座群里的联络人，专门盯着独居老人收钱"},
+     {k:"B", text:"卖保健品的微商，收了钱之后就很少再回复"},
+     {k:"C", text:"一个和妈妈同龄的外地女人，钱到她账户后大多转去了医院"},
+     {k:"D", text:"妈妈早年在外打工认识的老姐妹，后来断了联系"}]},
+  {id:"q2", type:"single", title:"② 妈妈为什么每个月坚持给她转钱？",
+   opts:[
+     {k:"A", text:"她被对方的话术套住了，以为投钱能返利、能治病"},
+     {k:"B", text:"她在为很久以前的一件事，做某种偿还"},
+     {k:"C", text:"对方手里有她的把柄，她不转不行"},
+     {k:"D", text:"她只是心软，见不得孩子受苦，顺手帮忙而已"}]},
+  {id:"q3", type:"multi", title:"③ 妈妈一直瞒着你的核心事实有哪些？",
+   opts:[
+     {k:"A", text:"我四岁那年的病，和这个女人有关"},
+     {k:"B", text:"她为了筹钱，在外面借了高利贷"},
+     {k:"C", text:"她自己的身体出了问题，她在赶时间"},
+     {k:"D", text:"她想卖掉房子，搬去外地陪那个孩子"},
+     {k:"E", text:"她被某个养生组织说动，准备把养老钱都捐出去"}]}
+];
+function initAccuse(){
+  const box=document.getElementById("accuseBox");
+  box.innerHTML=QUESTIONS.map(q=>
+    '<div class="accuse-q"><h4><span class="qnum">'+q.title.split(" ")[0]+'</span>'+q.title.substring(q.title.indexOf(" ")+1)+
+    (q.type==="multi"?'<span style="display:block;font-size:12px;color:var(--gold-dim);font-weight:400;margin-top:4px">（可多选）</span>':'')+'</h4>'+
+    q.opts.map(o=>'<button class="opt" data-q="'+q.id+'" data-k="'+o.k+'" onclick="pickAnswer(\''+q.id+'\',\''+o.k+'\',\''+q.type+'\')">'+o.k+'．'+o.text+'</button>').join("")+
+    '</div>').join("");
+  state.answers={q1:null,q2:null,q3:[]};
+  renderAccuseClues();
+}
+function renderAccuseClues(){
+  const ids=Object.keys(state.unlocked);
+  const list=document.getElementById("accuseClueList");
+  const setText=v=>{
+    const c1=document.getElementById("acCount"); if(c1) c1.textContent=v;
+    const c2=document.getElementById("acFabCount"); if(c2) c2.textContent=v;
+  };
+  setText(ids.length);
+  if(!ids.length){
+    list.innerHTML='<div class="ac-empty">你还没有在调查中确认任何事实。<br>回到牌阵多问几次，或先凭直觉作答。</div>';
+    return;
+  }
+  const slotLabel={person:"人物",motive:"动机",truth:"真相"};
+  const all=FACTS.person.concat(FACTS.motive).concat(FACTS.truth);
+  list.innerHTML=["person","motive","truth"].map(slot=>{
+    const items=ids.filter(id=>state.unlocked[id]===slot)
+      .map(id=>all.find(f=>f.id===id)).filter(Boolean);
+    if(!items.length) return "";
+    return '<div class="ac-group">'+slotLabel[slot]+'牌</div>'+
+      items.map(f=>'<div class="ac-clue">'+f.clue+'</div>').join("");
+  }).join("");
+}
+function toggleAccuseClues(){
+  document.getElementById("accuseClues").classList.toggle("open");
+}
+function pickAnswer(qid,k,type){
+  if(type==="single"){
+    state.answers[qid]=k;
+    document.querySelectorAll('[data-q="'+qid+'"]').forEach(b=>b.classList.toggle("picked",b.dataset.k===k));
+  }else{
+    const arr=state.answers[qid];
+    const idx=arr.indexOf(k);
+    if(idx>=0) arr.splice(idx,1); else arr.push(k);
+    document.querySelector('[data-q="'+qid+'"][data-k="'+k+'"]').classList.toggle("picked",idx<0);
+  }
+}
+/* ============ 结局判定与渲染 ============ */
+function judgeEnding(){
+  const a=state.answers;
+  if(a.q1!=="C") return "bad";
+  if(a.q2==="D") return "normal";
+  if(a.q2==="B" && a.q3.includes("A")){
+    const misled=a.q3.some(k=>["B","D","E"].includes(k));
+    if(misled) return "normal";        // 方向对了，却被假线索带偏
+    if(a.q3.includes("C")) return "secret";
+    return "good";
+  }
+  return "normal";
+}
+const ENDINGS = {
+  bad:{type:"错误结局", title:"拦　截", card:16,
+   text:"周晓棠报了警，冻结了转账，又在电话里骂赵秀琴一家是骗子。\n\n事情闹大，钱被退了回来。赵秀琴家的朵朵化疗中断，转去了更便宜的医院。\n\n妈妈在电话里第一次对她发火，声音发抖，最后只说了一句：\n\n“你以为你四岁那年，命是怎么捡回来的？”\n\n电话挂断了。那天晚上，她发现自己和妈妈之间，多了一道再也绕不过去的墙。",
+   quote:"高塔正位——你以为你在救她，其实你亲手砸塌了她用二十年撑起来的东西。"},
+  normal:{type:"普通结局", title:"转　账", card:11,
+   text:"周晓棠知道朵朵是真的在生病，她没有阻止妈妈，还帮她转了两笔钱。\n\n但她始终不明白，妈妈为什么要这样执着。妈妈也什么都没说。\n\n她做了一件好事，却没能走进母亲的心里。",
+   quote:"正义正位——你看见了事情的一部分，却没看见它为什么开始。"},
+  good:{type:"真结局", title:"拨浪鼓", card:14,
+   text:"周晓棠坐最近一班高铁回了老家。\n\n她在衣柜最底层找到那个旧铁盒：泛黄的缴费单、一张借条、一只小小的拨浪鼓。\n\n她下意识摸了摸自己胸口的疤。消毒水味、雪、还有一个陌生女人的声音——“先救孩子”。\n\n四岁那年的记忆，回来了。\n\n她没有拆穿。她陪妈妈去了医院，把工作攒的两万块取出来，放在妈妈手里：\n\n“妈，这债，咱们一起还。”\n\n妈妈在走廊里，哭得像个孩子。",
+   quote:"节制正位——堵了二十年的话，终于像水流一样接通了。"},
+  secret:{type:"隐藏结局", title:"铁盒里的牌", card:21,
+   text:"铁盒最底下，还有一张她没见过的体检报告：高血压，冠心病早期。\n\n她突然明白了——妈妈是在赶时间。\n\n她没有声张，只是默默给妈妈挂了心内科的号，又和赵秀琴一家说好：钱慢慢还，人都要好好的。\n\n病房里，朵朵抱着那只拨浪鼓，两个母亲坐在床边，一个给孩子削苹果，一个给孩子掖被角。\n\n二十年前，一个陌生女人把钱塞给了她的母亲；二十年后，她的母亲和她，又把这份善意放回了那个病房。",
+   quote:"世界正位——二十年前，你被善意托住；二十年后，你也成了托住别人的人。善意绕了一圈，回到它开始的地方。"}
+};
+const REVELATION="逆位的星币五不是贫穷，是母亲把贫穷留给了自己。\n\n她从四千块退休金里拿出三千，不是糊涂，是一个普通人用她能想到的最笨的方式，记了二十年的恩。\n\n她瞒你，不是见外——是她还把你当成那个需要她护在身后的四岁孩子。\n\n你能做的，从来不是阻止她，而是让她知道：从今天起，你也可以，和她一起扛。";
+/* 案件复盘：每个结局后展示的完整故事 */
+const FULL_STORY_TITLE="案件复盘 · 完整故事";
+const FULL_STORY="二〇〇六年的冬天，你四岁。一场急性肺炎让你呼吸衰竭，躺在市医院的抢救床上。你母亲翻遍了口袋，凑不齐三千块抢救费。\n\n同病房有个乡下女人，叫赵秀琴。她的丈夫也在这家医院等着手术，可她把丈夫的手术费数出三千，塞进你母亲手里，只说了一句：“先救孩子。”\n\n你活了下来，胸口留下一道浅浅的疤。两家人在转院、搬迁、没有电话的年代里走散了。你母亲手里只剩一张借条，和一个早已不存在的地址。这二十年，她做零工、捡废品，一分一厘把钱连本带息地攒着，一遍一遍找那个名字。她对外只说你得的是普通肺炎——她不想让你知道，自己的命是别人拿钱抢回来的，更不想让你背上债。\n\n一年前，她在病友群里终于找到了赵秀琴。赵秀琴的丈夫早已过世，家里只剩三代女人；她六岁的外孙女朵朵，得了急性淋巴细胞白血病，正在化疗。\n\n从那天起，你母亲把每月四千块退休金分成两份：三千还债，一千活命。她还找你舅舅借了两万。赵秀琴几次拒收，她就把钱说成“给孩子的压岁钱”。她跑去外地，不是去听养生课，是去医院陪护。\n\n半年前，她自己查出了高血压、冠心病早期。她没有告诉任何人。她是在赶时间——赶在自己倒下之前，把恩还完，也把你安顿好。\n\n她嘴里的“保健品”，是一堵墙。墙后面是她开不了口的全部：二十年前那个雪夜、一个陌生女人的善意、和她独自记了二十年的亏欠。\n\n你以为母亲正在走进一个骗局；事实上，她只是想在还来得及的时候，把别人二十年前给过你们的光，还回去。";
+function goEnding(){
+  if(!state.answers.q1 || !state.answers.q2){
+    alert("请先回答前两个问题。");
+    return;
+  }
+  const type=judgeEnding();
+  const e=ENDINGS[type];
+  const totalFacts=FACTS.person.length+FACTS.motive.length+FACTS.truth.length;
+  const found=Object.keys(state.unlocked).length;
+  const insight=Math.round(found/totalFacts*100);
+  const visionCount=Object.values(state.visionUsed).filter(Boolean).length;
+  const intuition=Math.round(visionCount/3*100);
+  const empathy=Math.min(100,Math.round(state.clientAsks/3*100)||12);
+  const c=TAROT[e.card];
+  const card=cardHTML(c,false,true);
+  document.getElementById("endingContent").innerHTML =
+    '<div class="ending-card"><div class="ending-type">'+e.type+'</div>'+
+    '<div class="ending-title">'+e.title+'</div>'+card+
+    '<div class="ending-text">'+e.text.replace(/\n/g,"<br>")+'</div>'+
+    '<div class="ending-story"><div class="story-title">'+FULL_STORY_TITLE+'</div>'+
+    '<div class="story-text">'+FULL_STORY.replace(/\n/g,"<br>")+'</div></div>'+
+    '<div class="scores">'+
+      '<div class="score"><div class="s-name">洞察力</div><div class="s-val">'+insight+'<small> 分</small></div></div>'+
+      '<div class="score"><div class="s-name">直觉力</div><div class="s-val">'+intuition+'<small> 分</small></div></div>'+
+      '<div class="score"><div class="s-name">共情力</div><div class="s-val">'+empathy+'<small> 分</small></div></div>'+
+    '</div>'+
+    '<div class="ending-revelation">'+e.quote+'<br><br>'+REVELATION.replace(/\n/g,"<br>")+'</div>'+
+    '<div class="ending-actions"><button class="btn" onclick="restart()">再玩一次</button></div></div>';
+  go("ending");
+}
+function restart(){
+  Object.assign(state,{
+    drawn:[],drawCount:0,selectedSlot:"person",unlocked:{},
+    quota:{person:3,motive:3,truth:3},
+    visionUsed:{person:false,motive:false,truth:false},
+    seenFragments:[false,false,false],
+    clientAsks:0,emotion:70,answers:{q1:null,q2:null,q3:[]}
+  });
+  updateEmotion();
+  go("home");
+}
+</script>
+</body>
+</html>
