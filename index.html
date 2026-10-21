@@ -460,6 +460,13 @@ main{position:relative;z-index:1;min-height:100vh}
   .ac-fab b{color:var(--candle);margin-left:8px}
 }
 </style>
+<audio id="bgm" src="./bgm.MP3" loop></audio>
+<script>
+  const bgm = document.getElementById('bgm');
+  bgm.play().catch(() => {
+    document.addEventListener('click', () => bgm.play(), { once: true });
+  });
+</script>
 </head>
 <body>
 <div class="starfield" id="starfield"></div>
